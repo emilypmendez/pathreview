@@ -77,3 +77,25 @@ exercises the upload path.
   embeddings, asserting each stage's output and the final `IngestResult`
   (`chunk_count`, `skipped`, `source_id`), with the embedding provider / vector
   DB stubbed so the test runs offline.
+
+## Week 8 — Reproduction & solution planning
+
+**Reproduction commit link:** https://github.com/emilypmendez/pathreview/commit/ab805f9
+
+**Reproduction summary:**
+Ran `pytest tests/integration -v` and `grep -rl "ingest_resume\|IngestionPipeline" tests/`,
+observing that the integration suite collects 0 tests, no test touches the
+pipeline orchestrator, and `tests/fixtures/sample_resumes/` does not exist —
+confirming the coverage gap is real and isolating exactly where the fix belongs.
+
+**PLAN.md link:** https://github.com/emilypmendez/pathreview/blob/test/18-e2e-ingestion-test-with-sample-resume-fixture/PLAN.md
+
+**Walkthrough video (recommended):** N/A
+
+**Blockers or open questions:**
+None blocking. Verified via a throwaway script that the full pipeline runs
+end-to-end with the existing `MockEmbeddingProvider` and a fake vector-DB spy,
+so no production code changes are needed — the fix is test-only. One decision
+settled during research: use a fake vector DB rather than a live ChromaDB
+client, because chunk metadata includes a list (`detected_sections`) that
+ChromaDB's scalar-only metadata constraint would reject.
