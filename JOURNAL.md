@@ -22,3 +22,58 @@ into the complete pipeline.
 **Setup confirmation:** [x] App runs locally at localhost:5173
 
 **Cohort ledger:** [x] Issue added to cohort ledger
+
+---
+
+### Reproduction of the gap
+
+Because this is a missing-coverage issue (not a runtime bug), "reproducing" it
+means confirming the test does not exist and pinning down exactly where it
+should live. I verified three things locally on this branch.
+
+**1. The integration suite is empty — it collects zero tests:**
+
+```
+$ .venv/bin/pytest tests/integration -v
+collected 0 items
+============================ no tests ran in 1.25s =============================
+```
+
+`tests/integration/` contains only `__init__.py`; there is no
+`test_ingestion_pipeline.py`.
+
+**2. The pipeline orchestrator has no test that exercises it end-to-end:**
+
+```
+$ grep -rl "ingest_resume\|IngestionPipeline" tests/
+(no matches)
+```
+
+The orchestrator lives in
+[`ingestion/pipeline.py`](ingestion/pipeline.py) — `IngestionPipeline.ingest_resume()`
+chains the full flow: `ResumeParser.parse()` → `StrategySelector.chunk()` →
+`BatchEmbeddingProcessor.process()` (embed + store in the vector DB) →
+`_record_ingested_source()`. Every unit test under `tests/unit/` covers one of
+these components in isolation (e.g. `test_resume_parser.py`,
+`test_semantic_chunker.py`, `test_batch_processor.py`), but nothing wires them
+together, so a break at a seam between components would go undetected.
+
+**3. The required fixtures directory does not exist:**
+
+```
+$ ls tests/fixtures/sample_resumes
+ls: tests/fixtures/sample_resumes: No such file or directory
+```
+
+There is no `tests/fixtures/` directory at all. The only resume sample today is
+an inline string fixture, `sample_resume_text`, in
+[`tests/conftest.py`](tests/conftest.py) — not a file-based fixture that
+exercises the upload path.
+
+**Conclusion / where the fix lives:**
+- Add sample resume file(s) under `tests/fixtures/sample_resumes/`.
+- Add `tests/integration/test_ingestion_pipeline.py` that drives
+  `IngestionPipeline.ingest_resume()` from a fixture file through to stored
+  embeddings, asserting each stage's output and the final `IngestResult`
+  (`chunk_count`, `skipped`, `source_id`), with the embedding provider / vector
+  DB stubbed so the test runs offline.
