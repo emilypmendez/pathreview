@@ -99,3 +99,58 @@ so no production code changes are needed — the fix is test-only. One decision
 settled during research: use a fake vector DB rather than a live ChromaDB
 client, because chunk metadata includes a list (`detected_sections`) that
 ChromaDB's scalar-only metadata constraint would reject.
+
+## Week 9 — Solution building & PR submission
+
+### Check-in 1 (mid-week)
+
+**Current progress:**
+Working from PLAN.md, all sub-tasks are done. Sub-task 1: added the sample
+resume fixture at `tests/fixtures/sample_resumes/sample_resume.md`. Sub-tasks
+2–5: added `tests/integration/test_ingestion_pipeline.py`, which builds the
+offline test doubles (existing `MockEmbeddingProvider` + an in-memory
+`FakeVectorDB` spy, with the `db_session` dedup lookup returning `None`), drives
+`IngestionPipeline.ingest_resume()` end-to-end, and asserts both the returned
+`IngestResult` and the stored embeddings/metadata/IDs at the storage seam. All 8
+tests pass under `make test-integration`; each change was committed separately.
+
+**Next steps:**
+Add the edge-case tests (duplicate-skip, empty resume), run the full baseline
+comparison to confirm no new failures, self-review against CONTRIBUTING.md
+(branch name, commit format, docstrings), and open the PR to upstream.
+
+**Blockers:**
+None. Confirmed the mypy pre-commit hook flags unannotated test methods, but
+existing `tests/unit/*` files are unannotated too, so I'm matching the repo's
+established test style (`make check` excludes `tests/` from typecheck anyway).
+
+---
+
+### Check-in 2 (end of week)
+
+**PR link:** https://github.com/ascherj/pathreview/pull/502
+
+**Branch:** `test/18-e2e-ingestion-test-with-sample-resume-fixture`
+
+**What you built:**
+An end-to-end integration test for the resume ingestion pipeline. It feeds a
+sample resume fixture into `IngestionPipeline.ingest_resume()` and verifies the
+full parse → chunk → embed → store flow, using the offline `MockEmbeddingProvider`
+and an in-memory vector-DB spy so it runs with no network or Docker services.
+No production code was changed — the fix is test-only.
+
+**Tests added or updated:**
+- `tests/integration/test_ingestion_pipeline.py` (new) — 8 tests: end-to-end
+  happy path, embedding shape (1536-dim), metadata propagation across stage
+  seams, stored document text, `{source_id}_chunk_{index}` ID convention,
+  duplicate-source skip, empty-resume handling, and mock-embedding determinism.
+- `tests/fixtures/sample_resumes/sample_resume.md` (new) — realistic resume
+  fixture with detectable sections.
+
+**Self-review confirmation:** [x] make check passes  [x] make test-unit passes
+(Interpreted per the pre-existing-failures guidance: this branch introduces no
+new failures. Baseline recorded before starting — `make test-unit`: 53 failing
+before and 53 after, identical set; `make check`: 182 ruff lint errors before
+and after, none in the files I added. All pre-existing and documented in the PR.)
+
+**Draft PR feedback received from:** none
