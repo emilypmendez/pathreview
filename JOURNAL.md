@@ -154,3 +154,91 @@ before and 53 after, identical set; `make check`: 182 ruff lint errors before
 and after, none in the files I added. All pre-existing and documented in the PR.)
 
 **Draft PR feedback received from:** none
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No review has come in yet. The PR (https://github.com/ascherj/pathreview/pull/502)
+is still open and unreviewed by the maintainer.
+
+**How you responded:**
+N/A — no feedback to respond to. If review lands after this entry, I'll address
+it on the same branch and note it in the PR thread rather than the journal, since
+this is the final entry.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+The hardest part was not writing the test — it was proving I didn't need to
+change production code. My instinct on a "add a test" issue was to jump straight
+to writing assertions, but I kept getting stuck because I didn't actually
+understand how the four stages (`parse → chunk → embed → store`) handed data to
+each other. The real work was in Week 8: writing a throwaway script to run the
+whole pipeline once and watch what each stage returned, so I could see the seams
+before I tried to assert on them. The specific thing that surprised me was the
+ChromaDB scalar-only metadata constraint — chunk metadata carries a list
+(`detected_sections`), which a live ChromaDB client would reject, so a naive
+"just use the real DB" integration test would have failed for a reason that had
+nothing to do with the code under test. Discovering that quietly reframed the
+whole approach toward an in-memory `FakeVectorDB` spy. I would not have predicted
+that a metadata typing rule would be the thing that shaped my test architecture.
+
+**What did you learn about working in a large codebase?**
+Contributing to someone else's production code is mostly about reading the room,
+not writing code. On my own projects I set the conventions; here I had to infer
+them and then defer to them even when they felt wrong. The clearest example was
+the mypy pre-commit hook flagging my unannotated test methods. My reflex was to
+add type annotations to "do it right," but the existing `tests/unit/*` files are
+all unannotated, and `make check` excludes `tests/` from typechecking anyway.
+Matching the repo's established style was the correct move — a PR that
+gratuitously annotates only the new test file creates inconsistency and gives a
+reviewer a reason to ask "why is this file different?" I also learned to
+establish a baseline before touching anything: recording that `make test-unit`
+had 53 failures and `make check` had 182 ruff errors *before* my change is what
+let me say with confidence "I introduced zero new failures" instead of panicking
+when I saw red. In my own repo a green suite is the baseline; in a large shared
+codebase the baseline is often already broken, and the honest claim is "no new
+breakage," not "everything passes."
+
+**How did AI tools help — and where did they fall short?**
+AI was most useful for orientation and mechanical scaffolding: tracing which
+files `IngestionPipeline.ingest_resume()` touched, drafting the `FakeVectorDB`
+spy boilerplate, and sanity-checking that my fixture had the sections the chunker
+would actually detect. That saved real time in the exploration phase. Where it
+fell short was exactly the judgment calls above. AI could not have told me the
+ChromaDB metadata constraint would bite until I ran the pipeline and hit it — the
+knowledge lived in runtime behavior, not in any single file it could read. And on
+the mypy/annotation question, AI's default lean is toward "best practice" (add
+the types), which was the *wrong* call for this repo. Deciding to match an
+imperfect local convention over a general best practice is a judgment I had to
+make by reading the surrounding files myself. AI is good at "what does this code
+do"; it is weak at "what will this specific maintainer want," which is the actual
+question a contribution has to answer.
+
+**What would you do differently if you started over?**
+I'd run the pipeline end-to-end on day one instead of reading it statically for
+too long first. The throwaway exploration script in Week 8 unlocked everything —
+the seams, the metadata constraint, the confirmation that no production change
+was needed — and I could have written it in Week 7 and saved myself a lot of
+guessing. On process, I'd also open the PR as a draft earlier and explicitly ask
+the maintainer about the annotation/style question up front, rather than deciding
+it solo and documenting my reasoning in the PR description. My call was defensible,
+but surfacing it as a question would have been a cheaper way to de-risk the review
+than hoping my written justification lands. Issue selection I wouldn't change — a
+test-only, no-production-change issue was a good first contribution because it let
+me learn the codebase's shape without the pressure of also not breaking it.
+
+**What are you most proud of from this module?**
+The discipline of the baseline comparison and the honesty in how I reported it.
+It would have been easy to write "all tests pass" and move on, or to quietly fix
+a couple of the 53 pre-existing failures to make my PR look cleaner. Instead I
+recorded the before/after numbers, kept my change strictly scoped to the missing
+coverage, and stated plainly that the repo has pre-existing failures my work
+neither caused nor fixed. That's the habit I most want to carry forward: making
+a claim I can actually defend, rather than the claim that looks best.
